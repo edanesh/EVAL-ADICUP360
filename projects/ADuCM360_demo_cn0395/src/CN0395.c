@@ -392,7 +392,7 @@ void CN0395_DisplayData(sMeasurementVariables *sMeasVar)
 		AppPrintf("\r\nSensor Res Air:      Ro    = %.2f [Ohms]",
 			  sMeasVar->fSensorResCleanAir);
 	} else {
-		AppPrintf("\r\nAvailable data for RS mode:");
+/*		AppPrintf("\r\nAvailable data for RS mode:");
 		UART_WriteString("\r\n");
 		AppPrintf("\r\nSensor Resistance:      Rs    = %.2f [Ohms]",
 			  sMeasVar->fSensorRes);
@@ -406,7 +406,22 @@ void CN0395_DisplayData(sMeasurementVariables *sMeasVar)
 		AppPrintf("\r\nAmbient Heater Temp:    T_A   = %.2f [C]",
 			  sMeasVar->fAmbientHeaterTemp);
 		AppPrintf("\r\nAmbient Heater Hum:     HUM   = %.2f [%s]",
-			  sMeasVar->fAmbientHeaterHum, percent);
+			  sMeasVar->fAmbientHeaterHum, percent);*/
+
+		/* simplified output */
+		AppPrintf("%.2f,",
+			  sMeasVar->fSensorRes);
+		AppPrintf("%.4f,",
+			  sMeasVar->fSensorVoltage);
+		AppPrintf("%.2f,",
+			  sMeasVar->fHeaterTemp);
+		AppPrintf("%.4f,",
+			  sMeasVar->fHeaterVoltage);
+		AppPrintf("%.2f,",
+			  sMeasVar->fAmbientHeaterTemp);
+		AppPrintf("%.2f",
+			  sMeasVar->fAmbientHeaterHum);
+		/* simplified output */
 	}
 	UART_WriteString("\r\n");
 }
