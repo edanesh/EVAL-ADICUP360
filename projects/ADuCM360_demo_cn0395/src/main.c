@@ -85,6 +85,13 @@ extern uint8_t ui8ContinousRsMeasurement;
 
 extern void CN0395_ComputeHeaterRPT(sMeasurementVariables *sMeasVar);
 
+extern void CN0395_CorrectError(sMeasurementVariables *sMeasVar,
+		float fInputCurrent,
+		float fDesiredValue,
+		enCN0395ErrCorrection enSubroutine);
+
+char *percent = "%"; //new in AS modified board
+
 int main(int argc, char* argv[])
 {
    static uint8_t count = 0;
@@ -110,14 +117,28 @@ int main(int argc, char* argv[])
     {
         if (uart_cmd == UART_TRUE) {  /* condition becomes true when the system receives as Carriage Return(CR) command from the UART */
               if(count == 0) { // Check first <ENTER> is pressed after reset
-                 AppPrintf("\tWelcome to CN0395 application!\n");
-                 AppPrintf("\r\nDefault at power up: \n");
-                 AppPrintf("\r\n* RS operation mode\n");
-                 AppPrintf("\r* IH = 8 mA (Constant current)\n");
-                 AppPrintf("\r* Ro = %.2f [Ohms] (Sensor resistance in clean air)\n", sMeasVar->fSensorResCleanAir);
-                 AppPrintf("\r\n>>Type in <help> to see available commands\n");
+				 AppPrintf("\tWelcome to CN0395 application!\n");
+				 AppPrintf("\r\nDefault at power up: \n");
+				 AppPrintf("\r\n* RS operation mode\n");
+				 AppPrintf("\r* IH = 8 mA (Constant current)\n");
 
-                 count++;
+	//           AppPrintf("\r* Ro = %.2f [Ohms] (Sensor resistance in clean air)\n", sMeasVar->fSensorResCleanAir);
+
+				// print primary heater measurements
+				 UART_WriteString("\r\n");
+				 AppPrintf("\r\nAmbient Heater Res:  RH_A  = %.2f [Ohms]",
+					  sMeasVar->fAmbientHeaterRes);
+				 AppPrintf("\r\nZero Heater Res:  RH_o  = %.2f [Ohms]",
+						  sMeasVar->fzeroHeaterRes);
+				 AppPrintf("\r\nAmbient Heater Temp: T_A   = %.2f [C]",
+							  sMeasVar->fAmbientHeaterTemp);
+				 AppPrintf("\r\nAmbient Heater Hum:  HUM   = %.2f [%s]",
+							  sMeasVar->fAmbientHeaterHum, percent);
+				 UART_WriteString("\r\n");
+
+				 AppPrintf("\r\n>>Type in <help> to see available commands\n");
+
+				 count++;
               }
               else { // At a second <ENTER> press, do the processing
                  CN0395_CmdProcess(sMeasVar);
@@ -127,7 +148,8 @@ int main(int argc, char* argv[])
         }
         if(ui8ContinousRsMeasurement) {
 
-              uint16_t ui16AdcData = 0;
+              /* not used for AS modified board since there operation mode is based on constant T
+        	  uint16_t ui16AdcData = 0;
               float    fHeaterVoltage = 0;
 
               AD7988_SetOperationMode(AD7988_RH_MODE);
@@ -136,10 +158,18 @@ int main(int argc, char* argv[])
               timer_sleep(50); // delay 50ms
 
               sMeasVar->fHeaterVoltage = fHeaterVoltage;
+              */
+
+              float	fCurrent = sMeasVar->fHeaterCurrent;;
+              float	fDesiredHeaterRes = sMeasVar->fDesiredHeaterRes;
+//              fCurrent = sMeasVar->fHeaterCurrent;
+//              fDesiredHeaterRes = sMeasVar->fDesiredHeaterRes;
+              CN0395_CorrectError(sMeasVar, fCurrent, fDesiredHeaterRes, RESISTANCE);
               CN0395_ComputeHeaterRPT(sMeasVar); // Compute RH, PH and TH
 
               CN0395_MeasureSensorResistance(sMeasVar);
-              timer_sleep(998);
+//              timer_sleep(998);
+              timer_sleep(50);
               CN0395_DisplayData(sMeasVar);
         }
     }

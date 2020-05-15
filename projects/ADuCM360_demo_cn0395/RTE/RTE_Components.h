@@ -2,7 +2,7 @@
  * Auto generated Run-Time-Environment Component Configuration File
  *      *** Do not modify ! ***
  *
- * Project: ADuCM360_demo_cn0395
+ * Project: ADuCM360_demo_cn0395-ED
  * RTE configuration: system.rteconfig
 */
 #ifndef RTE_COMPONENTS_H

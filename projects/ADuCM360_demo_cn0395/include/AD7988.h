@@ -50,7 +50,9 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /********************************* Global data ********************************/
 #define ADC_VREF  4.096 // V
-#define ADC_CODE_CALIBRATION  (((ADN8810_IFS * 71.5) / 1000) / ADC_VREF * 65535)
+//#define ADC_CODE_CALIBRATION  (((ADN8810_IFS * 71.5) / 1000) / ADC_VREF * 65535)
+#define ADC_CODE_CALIBRATION  (((ADN8810_IFS * 10) / 1000) / ADC_VREF * 65535) // RCAL2 suitable for AS modified board https://ez.analog.com/circuits_from_the_lab/f/q-a/165340/eval-cn0395-ardz-configuration-for-alphasense-voc-m31-gas-sensor/374672#374672
+
 
 /************************** Variable Definitions ******************************/
 typedef enum{

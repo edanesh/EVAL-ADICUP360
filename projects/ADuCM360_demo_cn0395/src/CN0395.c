@@ -202,7 +202,7 @@ void CN0395_ComputeHeaterRPT(sMeasurementVariables *sMeasVar)
 	float    fHeaterPower;
 	float    fHeaterTemp;
 
-	const float fHeaterNomimalRes = 110; // RH_0 = 110Ω @ 20°C
+//	const float fHeaterNomimalRes = 110; // RH_0 = 110Ω @ 20°C // unused for AS modified board
 
 	fHeaterVoltage = sMeasVar->fHeaterVoltage;
 	fHeaterCurrent = sMeasVar->fHeaterCurrent;
@@ -218,8 +218,13 @@ void CN0395_ComputeHeaterRPT(sMeasurementVariables *sMeasVar)
 	/* RH_T = RH_A [ 1 + ALPHA*(RH_0/RH_A)*(T – T_A)] - solve for T as a function of RH_T:
 	 * T =  (RH_T – RH_A) / (ALPHA * RH_0) + T_A
 	 */
-	fHeaterTemp = (fHeaterRes - sMeasVar->fAmbientHeaterRes) /
-		      (ALPHA * fHeaterNomimalRes) + fAmbientHeaterTemp;
+//	fHeaterTemp = (fHeaterRes - sMeasVar->fAmbientHeaterRes) /
+//		      (ALPHA * fHeaterNomimalRes) + fAmbientHeaterTemp;
+	/* for AS modified board:
+	 * RH_T = RH_A [ 1 + ALPHA*(RH_0/RH_A)*(T – T_A)] - solve for T as a function of RH_T:
+	 * T =  (RH_T - RH_A) / (ALPHA)
+	 */
+	fHeaterTemp = ((fHeaterRes / sMeasVar->fzeroHeaterRes) - 1) / ALPHA;
 
 	sMeasVar->fHeaterRes = fHeaterRes;
 	sMeasVar->fAmbientHeaterTemp = fAmbientHeaterTemp;
@@ -245,6 +250,7 @@ void CN0395_PowerOn(sMeasurementVariables *sMeasVar)
 	float    fAmbientHeaterRes;
 	float    fAmbientHeaterTemp;
 	float    fAmbientHeaterHum;
+	float    fzeroHeaterRes; // new variable for AS modified board
 	uint32_t ui32CalibrationData[2];
 
 	// Enable master power on IO5 and reset DAC
@@ -272,8 +278,13 @@ void CN0395_PowerOn(sMeasurementVariables *sMeasVar)
 	sMeasVar->fHeaterCurrent = 8;
 	ADN8810_SetOutput(sMeasVar->fHeaterCurrent, sMeasVar);
 
-	// Delay 20uS; this is long enough for DAC current to settle, but not long enough for heater temp to change
-	timer_sleep_5uS(4);
+	/* Delay 20uS; this is long enough for DAC current to settle, but not long enough for heater temp to change
+	we use this routine for AS modified sensor to estimate ambient RH, assuming 8mA is low enough to not heat up the sensor
+	There is a risk that the sensor is not cool (at ambient T) when this measurement is done,
+	so operator must be careful otherwise read value will be wrong
+	*/
+//	timer_sleep_5uS(4);
+	timer_sleep(2000);
 
 	ui16AdcData = CN0395_ReadAdc(sMeasVar);
 	fHeaterVoltage = AD7988_DataToVoltage(ui16AdcData);
@@ -283,12 +294,17 @@ void CN0395_PowerOn(sMeasurementVariables *sMeasVar)
 	// Read T_A and HUM from temperature/humidity sensor
 	SHT30_Update(&fAmbientHeaterTemp, &fAmbientHeaterHum);
 
+	// Calculate RH_o = RH_A / (1 + ALPHA * T_A)
+	fzeroHeaterRes = fAmbientHeaterRes / (1 + ALPHA * fAmbientHeaterTemp);
+
 	// Store some init measurement values for future calculations
 	sMeasVar->fAmbientHeaterRes = fAmbientHeaterRes;
+	sMeasVar->fzeroHeaterRes = fzeroHeaterRes; // new for AS modified board
 	sMeasVar->fHeaterVoltage = fHeaterVoltage;
 	sMeasVar->fAmbientHeaterTemp = fAmbientHeaterTemp;
 	sMeasVar->fAmbientHeaterHum = fAmbientHeaterHum;
 
+	/* not in use for AS modified board
 	CN0395_ComputeHeaterRPT(sMeasVar); // Compute RH, PH and TH
 
 	// At power up, perform a Ro measurement and store it for future use
@@ -298,6 +314,7 @@ void CN0395_PowerOn(sMeasurementVariables *sMeasVar)
 		timer_sleep(500);
 		sMeasVar->fSensorResCleanAir = CN0395_MeasureSensorResistance(sMeasVar);
 	}
+	*/
 }
 
 /**
@@ -335,7 +352,8 @@ float CN0395_MeasureSensorResistance(sMeasurementVariables *sMeasVar)
 
 		if(ui16AdcData > GainRangingTh[i8GainRangingIndex][2]) {
 			AppPrintf("\r\nADC Data Error  = %d ", ui16AdcData);
-			return -1;
+//			return -1; -1 stops the board from other operations, so we just change it to 1 to continue
+			return 1;
 		}
 		// ADC Data is bellow the threshold switch to the next gain
 		else if (ui16AdcData < GainRangingTh[i8GainRangingIndex][0]) {
@@ -387,28 +405,34 @@ void CN0395_DisplayData(sMeasurementVariables *sMeasVar)
 			  sMeasVar->fAmbientHeaterHum, percent);
 		AppPrintf("\r\nHeater Power:        PH    = %.4f [mW]", sMeasVar->fHeaterPower);
 		AppPrintf("\r\nHeater Temp:         TH    = %.2f [C]", sMeasVar->fHeaterTemp );
-		AppPrintf("\r\nADC Data                   = 0x%x",
-			  sMeasVar->ui16LastAdcDataRead);
-		AppPrintf("\r\nSensor Res Air:      Ro    = %.2f [Ohms]",
-			  sMeasVar->fSensorResCleanAir);
+//		AppPrintf("\r\nADC Data                   = 0x%x",
+//			  sMeasVar->ui16LastAdcDataRead);
+//		AppPrintf("\r\nSensor Res Air:      Ro    = %.2f [Ohms]",
+//			  sMeasVar->fSensorResCleanAir);
+//		AppPrintf("\r\nSensor Resistance:      Rs    = %.2f [Ohms]",
+//			  sMeasVar->fSensorRes);
 	} else {
-/*		AppPrintf("\r\nAvailable data for RS mode:");
+		AppPrintf("\r\nAvailable data for RS mode:");
 		UART_WriteString("\r\n");
 		AppPrintf("\r\nSensor Resistance:      Rs    = %.2f [Ohms]",
 			  sMeasVar->fSensorRes);
-		AppPrintf("\r\nSensor Resistance Air:  Ro    = %.2f [Ohms]",
-			  sMeasVar->fSensorResCleanAir);
-		AppPrintf("\r\nGas Concentration       C     = %.2f [PPM]", sMeasVar->fPPM);
+//		AppPrintf("\r\nSensor Resistance Air:  Ro    = %.2f [Ohms]",
+//			  sMeasVar->fSensorResCleanAir);
+//		AppPrintf("\r\nGas Concentration       C     = %.2f [PPM]", sMeasVar->fPPM);
 		AppPrintf("\r\nSensor Voltage:         Vs    = %.4f [V]",
 			  sMeasVar->fSensorVoltage);
+		AppPrintf("\r\nHeater Resistance:   RH    = %.2f [Ohms]", sMeasVar->fHeaterRes);
 		AppPrintf("\r\nHeater Voltage:         VH    = %.4f [V]",
 			  sMeasVar->fHeaterVoltage);
+		AppPrintf("\r\nHeater Current:      IH    = %.4f [mA]",
+					  sMeasVar->fHeaterCurrent);
+		AppPrintf("\r\nHeater Temp:         TH    = %.2f [C]", sMeasVar->fHeaterTemp );
 		AppPrintf("\r\nAmbient Heater Temp:    T_A   = %.2f [C]",
 			  sMeasVar->fAmbientHeaterTemp);
 		AppPrintf("\r\nAmbient Heater Hum:     HUM   = %.2f [%s]",
-			  sMeasVar->fAmbientHeaterHum, percent);*/
+			  sMeasVar->fAmbientHeaterHum, percent);
 
-		/* simplified output */
+		/* simplified output
 		AppPrintf("%.2f,",
 			  sMeasVar->fSensorRes);
 		AppPrintf("%.4f,",
@@ -421,7 +445,7 @@ void CN0395_DisplayData(sMeasurementVariables *sMeasVar)
 			  sMeasVar->fAmbientHeaterTemp);
 		AppPrintf("%.2f",
 			  sMeasVar->fAmbientHeaterHum);
-		/* simplified output */
+		//simplified output */
 	}
 	UART_WriteString("\r\n");
 }
@@ -499,7 +523,8 @@ void CN0395_CmdCalibration(uint8_t *args, sMeasurementVariables *sMeasVar)
 	// Perform a new calibration routine and store K1 in permanent memory
 	else if(strncmp(arg, "w", 2) == 0) {
 
-		AppPrintf("\nPlace the P2 jumper between P2-1 and P2-2 (RCAL1) and press <c> key");
+//		AppPrintf("\nPlace the P2 jumper between P2-1 and P2-2 (RCAL1) and press <c> key");
+		AppPrintf("\nPlace the P2 jumper between P2-3 and P2-4 (RCAL2) and press <c> key");
 		AppPrintf("\n");
 
 		char response = '\0';
@@ -585,8 +610,10 @@ void CN0395_CmdSetHeaterCurrent(uint8_t *args, sMeasurementVariables *sMeasVar)
 	fDesiredHeaterCurrent = atof(arg); // convert string to float
 
 	if (ADN8810_SetOutput(fDesiredHeaterCurrent,
-			      sMeasVar) > 0) { // max current is 50 mA
+			      sMeasVar) > 0) { // max current is 50 mA??
 		AD7988_SetOperationMode(AD7988_RH_MODE);
+
+		timer_sleep(7000); // delay 7s to account for slow thermal response of AS sensor (ceramic vs MEMS)
 
 		ui16AdcData = CN0395_ReadAdc(sMeasVar);
 		fHeaterVoltage = AD7988_DataToVoltage(ui16AdcData);
@@ -595,13 +622,13 @@ void CN0395_CmdSetHeaterCurrent(uint8_t *args, sMeasurementVariables *sMeasVar)
 		sMeasVar->fHeaterCurrent = fDesiredHeaterCurrent;
 		sMeasVar->fHeaterVoltage = fHeaterVoltage;
 		CN0395_ComputeHeaterRPT(sMeasVar); // Compute RH, PH and TH
-		// Update Ro value
-		sMeasVar->fSensorResCleanAir = CN0395_MeasureSensorResistance(sMeasVar);
-		while (sMeasVar->fSensorResCleanAir <
-		       0) { // in case of error, repeat measurement
-			timer_sleep(500);
-			sMeasVar->fSensorResCleanAir = CN0395_MeasureSensorResistance(sMeasVar);
-		}
+		// Update Ro value //not in use for AS modified board
+//		sMeasVar->fSensorResCleanAir = CN0395_MeasureSensorResistance(sMeasVar);
+//		while (sMeasVar->fSensorResCleanAir <
+//		       0) { // in case of error, repeat measurement
+//			timer_sleep(500);
+//			sMeasVar->fSensorResCleanAir = CN0395_MeasureSensorResistance(sMeasVar);
+//		}
 		sMeasVar->OpMode = AD7988_RH_MODE;
 		CN0395_DisplayData(sMeasVar);
 	} else {
@@ -625,10 +652,15 @@ void CN0395_CmdSetHeaterCurrent(uint8_t *args, sMeasurementVariables *sMeasVar)
 
    @return None.
 **/
-static void CN0395_CorrectError(sMeasurementVariables *sMeasVar,
-				float fInputCurrent,
-				float fDesiredValue,
-				enCN0395ErrCorrection enSubroutine)
+//static void CN0395_CorrectError(sMeasurementVariables *sMeasVar,
+//				float fInputCurrent,
+//				float fDesiredValue,
+//				enCN0395ErrCorrection enSubroutine)
+
+void CN0395_CorrectError(sMeasurementVariables *sMeasVar,
+	float fInputCurrent,
+	float fDesiredValue,
+	enCN0395ErrCorrection enSubroutine)
 {
 	float    fError = 1;
 	uint16_t ui16AdcData = 0;
@@ -637,7 +669,7 @@ static void CN0395_CorrectError(sMeasurementVariables *sMeasVar,
 
 	while (fError > 0.005) { // repeat until the error is less than 0.5%
 		if (ADN8810_SetOutput(fInputCurrent, sMeasVar) > 0) {
-			timer_sleep(50); // delay 50ms for stabilization
+			timer_sleep(1000); // delay 1s for stabilization to account for slow response of S ceramic sensor
 
 			ui16AdcData = CN0395_ReadAdc(sMeasVar);
 			fVoltage = AD7988_DataToVoltage(ui16AdcData); // Convert ADC data to Voltage
@@ -651,12 +683,12 @@ static void CN0395_CorrectError(sMeasurementVariables *sMeasVar,
 
 			if (fDesiredValue > fActualValue) {
 				fError = (fDesiredValue - fActualValue) / fDesiredValue;  // calculate the error
-				fInputCurrent = fInputCurrent + fInputCurrent * 0.5 *
-						fError; // correct IH for the error
+				fInputCurrent = fInputCurrent + fInputCurrent * 0.1 *
+						fError; // correct IH for the error //correction factor changed to 0.1 from 0.5
 			} else {
 				fError = (fActualValue - fDesiredValue) / fDesiredValue; // calculate the error
-				fInputCurrent = fInputCurrent - fInputCurrent * 0.5 *
-						fError; // correct IH for the error
+				fInputCurrent = fInputCurrent - fInputCurrent * 0.1 *
+						fError; // correct IH for the error //correction factor changed to 0.1 from 0.5
 			}
 		} else {
 			AppPrintf("\n");
@@ -679,6 +711,8 @@ static void CN0395_CorrectError(sMeasurementVariables *sMeasVar,
    @param sMeasVar - pointer to the struct that contains all the relevant measurement variables
 
    @return None.
+
+   Note: this will not work properly on AS modified board
 **/
 void CN0395_CmdSetHeaterVoltage(uint8_t *args, sMeasurementVariables *sMeasVar)
 {
@@ -686,7 +720,8 @@ void CN0395_CmdSetHeaterVoltage(uint8_t *args, sMeasurementVariables *sMeasVar)
 	char     arg[3];
 	float    fDesiredVoltage;
 	float    fCurrent;
-	const uint8_t ui8HeaterRes = 225; // 225Ω
+//	const uint8_t ui8HeaterRes = 225; // 225Ω
+	const uint8_t ui8HeaterRes = 30; // upper limit of AS sensor heater resistance
 
 	while (*(p = CN0395_FindArgv(p)) !=
 	       '\0') {         /* Check if this function gets an argument */
@@ -701,13 +736,13 @@ void CN0395_CmdSetHeaterVoltage(uint8_t *args, sMeasurementVariables *sMeasVar)
 
 	CN0395_ComputeHeaterRPT(sMeasVar); // Compute RH, PH and TH
 
-	// Update Ro value
-	sMeasVar->fSensorResCleanAir = CN0395_MeasureSensorResistance(sMeasVar);
-	while (sMeasVar->fSensorResCleanAir <
-	       0) { // in case of error, repeat measurement
-		timer_sleep(500);
-		sMeasVar->fSensorResCleanAir = CN0395_MeasureSensorResistance(sMeasVar);
-	}
+	// Update Ro value //not in use for AS modified board
+//	sMeasVar->fSensorResCleanAir = CN0395_MeasureSensorResistance(sMeasVar);
+//	while (sMeasVar->fSensorResCleanAir <
+//	       0) { // in case of error, repeat measurement
+//		timer_sleep(500);
+//		sMeasVar->fSensorResCleanAir = CN0395_MeasureSensorResistance(sMeasVar);
+//	}
 	sMeasVar->OpMode = AD7988_RH_MODE;
 	CN0395_DisplayData(sMeasVar);
 }
@@ -719,14 +754,18 @@ void CN0395_CmdSetHeaterVoltage(uint8_t *args, sMeasurementVariables *sMeasVar)
    @param sMeasVar - pointer to the struct that contains all the relevant measurement variables
 
    @return None.
+
+   Note: R-I relationship dictates how fCurrent is estimated.
+   So, it's important to get it right based on experimental data. This means new calibration might be needed for every sensor!
 **/
 void CN0395_CmdSetHeaterRes(uint8_t *args, sMeasurementVariables *sMeasVar)
 {
 	uint8_t     *p = args;
 	char        arg[3];
 	float       fDesiredHeaterRes;
-	float       fCurrent = 8;
-	const float fHeaterRes = 110; // 110Ω @ 20°C
+	float       fCurrent = 8; //8 not used for AS modified board
+//	const float fHeaterRes = 110; // 110Ω @ 20°C //not used for AS modified board
+
 
 	while (*(p = CN0395_FindArgv(p)) !=
 	       '\0') {         /* Check if this function gets an argument */
@@ -735,7 +774,10 @@ void CN0395_CmdSetHeaterRes(uint8_t *args, sMeasurementVariables *sMeasVar)
 
 	fDesiredHeaterRes = atof(arg); // convert string to float
 	// Note: The slope of the RH vs.IH curve is 115Ω/8mA = 14375Ω/A
-	fCurrent = ((fDesiredHeaterRes - fHeaterRes) / 14375) * pow(10, 3);
+//	fCurrent = ((fDesiredHeaterRes - fHeaterRes) / 14375) * pow(10, 3);
+	// the new R-I curve suggested polynomial relationship, y = ax^2 + bx + c -> x = (-b+sqrt(b^2-4a(c-y)))/2a
+//	fCurrent = (-0.0073 + sqrt(pow(0.0072, 2) - 4*0.0005*(10.102-fDesiredHeaterRes))) / (2*0.0005); // for HT-1
+	fCurrent = (-0.0495 + sqrt(pow(0.0495, 2) - 4*0.0003*(10.521-fDesiredHeaterRes))) / (2*0.0003); // for HT-2
 
 	AD7988_SetOperationMode(AD7988_RH_MODE);
 
@@ -743,13 +785,13 @@ void CN0395_CmdSetHeaterRes(uint8_t *args, sMeasurementVariables *sMeasVar)
 
 	CN0395_ComputeHeaterRPT(sMeasVar); // Compute RH, PH and TH
 
-	// Update Ro value
-	sMeasVar->fSensorResCleanAir = CN0395_MeasureSensorResistance(sMeasVar);
-	while (sMeasVar->fSensorResCleanAir <
-	       0) { // in case of error, repeat measurement
-		timer_sleep(500);
-		sMeasVar->fSensorResCleanAir = CN0395_MeasureSensorResistance(sMeasVar);
-	}
+	// Update Ro value //not in use for AS modified board
+//	sMeasVar->fSensorResCleanAir = CN0395_MeasureSensorResistance(sMeasVar);
+//	while (sMeasVar->fSensorResCleanAir <
+//	       0) { // in case of error, repeat measurement
+//		timer_sleep(500);
+//		sMeasVar->fSensorResCleanAir = CN0395_MeasureSensorResistance(sMeasVar);
+//	}
 	sMeasVar->OpMode = AD7988_RH_MODE;
 	CN0395_DisplayData(sMeasVar);
 }
@@ -760,6 +802,8 @@ void CN0395_CmdSetHeaterRes(uint8_t *args, sMeasurementVariables *sMeasVar)
    @param *sMeasVar - pointer to the struct that contains all the relevant measurement variables
 
    @return None.
+
+   Note:
 **/
 void CN0395_CmdSetHeaterTemp(uint8_t *args, sMeasurementVariables *sMeasVar)
 {
@@ -771,7 +815,8 @@ void CN0395_CmdSetHeaterTemp(uint8_t *args, sMeasurementVariables *sMeasVar)
 	float       fAmbientHeaterRes;
 	float       fHum;
 	float       fCurrent = 8;
-	const float fDefaultHeaterRes = 110; // 110Ω @ 20°C
+	float		fzeroHeaterRes; // new variable for AS modified board
+//	const float fDefaultHeaterRes = 110; // 110Ω @ 20°C
 
 	while (*(p = CN0395_FindArgv(p)) !=
 	       '\0') {         /* Check if this function gets an argument */
@@ -784,26 +829,39 @@ void CN0395_CmdSetHeaterTemp(uint8_t *args, sMeasurementVariables *sMeasVar)
 
 	AD7988_SetOperationMode(AD7988_RH_MODE);
 
-	fAmbientHeaterRes =
-		sMeasVar->fAmbientHeaterRes; // get RH_A set initially at power on
+	fAmbientHeaterRes = sMeasVar->fAmbientHeaterRes; // get RH_A set initially at power on
+	fzeroHeaterRes = sMeasVar->fzeroHeaterRes; // get RH_o set initially at power on
 
-	// RH_T = RH_A [ 1 + ALPHA*(RH_0/RH_A)*(T – T_A)]
-	fDesiredHeaterRes = fAmbientHeaterRes *
-			    (1 + ALPHA * (fDefaultHeaterRes / fAmbientHeaterRes) * (fDesiredHeaterTemp -
-					    fAmbientHeaterTemp));
+//	// RH_T = RH_A [ 1 + ALPHA*(RH_0/RH_A)*(T – T_A)]
+//	fDesiredHeaterRes = fAmbientHeaterRes *
+//			    (1 + ALPHA * (fDefaultHeaterRes / fAmbientHeaterRes) * (fDesiredHeaterTemp -
+//					    fAmbientHeaterTemp));
+
+	// RH_T = RH_A [ 1 + ALPHA * (T - 0)]
+	fDesiredHeaterRes = fzeroHeaterRes * (1 + ALPHA * (fDesiredHeaterTemp));
+	sMeasVar->fDesiredHeaterRes = fDesiredHeaterRes;
+	AppPrintf("\r\nHeater Resistance set to :    RH   = %.2f [Ohm], waiting for correction",
+		  fDesiredHeaterRes);
+
+	// the new R-I curve suggested polynomial relationship, y = ax^2 + bx + c -> x = (-b+sqrt(b^2-4a(c-y)))/2a
+//	fCurrent = (-0.0073 + sqrt(pow(0.0072, 2) - 4*0.0005*(10.102-fDesiredHeaterRes))) / (2*0.0005); // for HT-1
+	fCurrent = (-0.0495 + sqrt(pow(0.0495, 2) - 4*0.0003*(10.521-fDesiredHeaterRes))) / (2*0.0003); // for HT-2
+
+	AppPrintf("\r\nHeater Current guessed to be:      IH    = %.4f [mA]",
+						  fCurrent);
 
 	CN0395_CorrectError(sMeasVar, fCurrent, fDesiredHeaterRes, RESISTANCE);
 
-	CN0395_CorrectError(sMeasVar, fCurrent, sMeasVar->fHeaterVoltage, VOLTAGE);
+//	CN0395_CorrectError(sMeasVar, fCurrent, sMeasVar->fHeaterVoltage, VOLTAGE); unclear why it is needed!
 
 	CN0395_ComputeHeaterRPT(sMeasVar); // Compute RH, PH and TH
-	// Update Ro value
-	sMeasVar->fSensorResCleanAir = CN0395_MeasureSensorResistance(sMeasVar);
-	while (sMeasVar->fSensorResCleanAir <
-	       0) { // in case of error, repeat measurement
-		timer_sleep(500);
-		sMeasVar->fSensorResCleanAir = CN0395_MeasureSensorResistance(sMeasVar);
-	}
+	// Update Ro value //not in use for AS modified board
+//	sMeasVar->fSensorResCleanAir = CN0395_MeasureSensorResistance(sMeasVar);
+//	while (sMeasVar->fSensorResCleanAir <
+//	       0) { // in case of error, repeat measurement
+//		timer_sleep(500);
+//		sMeasVar->fSensorResCleanAir = CN0395_MeasureSensorResistance(sMeasVar);
+//	}
 	sMeasVar->OpMode = AD7988_RH_MODE;
 	CN0395_DisplayData(sMeasVar);
 }
@@ -836,6 +894,8 @@ uint16_t CN0395_ReadAdc(sMeasurementVariables *sMeasVar)
  * @param ui32RgValue - Gain resistance value
  *
  * @return fRsValue - RS value.
+ *
+ * Note: currently not adapted to AS sensor
 **/
 float CN0395_CalculateRs(uint16_t ui16Adcdata, uint32_t ui32RgValue)
 {
@@ -853,6 +913,8 @@ float CN0395_CalculateRs(uint16_t ui16Adcdata, uint32_t ui32RgValue)
  * @param *sMeasVar - pointer to the struct that contains all the relevant measurement variables
  *
  * @return fConcentration - gas concentration in PPM
+ *
+ * Note: currently not adapted to AS sensor
 **/
 float CN0395_CalculatePPM(sMeasurementVariables *sMeasVar)
 {
@@ -875,6 +937,7 @@ float CN0395_CalculatePPM(sMeasurementVariables *sMeasVar)
    @param args - pointer to the arguments on the command line.
 
    @return pointer to the next argument.
+
 
 **/
 uint8_t *CN0395_FindArgv(uint8_t *args)

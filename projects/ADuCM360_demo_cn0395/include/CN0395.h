@@ -49,7 +49,8 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define CN0395_H_
 
 /********************************* Global data ********************************/
-#define ALPHA      0.003074
+//#define ALPHA      0.003074
+#define ALPHA      0.003600 // new value for AS sensors on modified board (reference T = 0 degC)
 
 /****************************** Internal types *********************************/
 typedef struct {
@@ -69,6 +70,8 @@ typedef struct {
    uint16_t    ui16LastAdcDataRead;
    uint8_t     OpMode;
    float       K1;                  // Gain correction factor
+   float       fzeroHeaterRes;		// RHo for AS sensor on modified board
+   float       fDesiredHeaterRes;		// RH target for  AS sensor on modified board
 }sMeasurementVariables;
 
 typedef enum{
