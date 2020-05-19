@@ -129,11 +129,11 @@ int main(int argc, char* argv[])
 				 AppPrintf("\r\nAmbient Heater Res:  RH_A  = %.2f [Ohms]",
 					  sMeasVar->fAmbientHeaterRes);
 				 AppPrintf("\r\nZero Heater Res:  RH_o  = %.2f [Ohms]",
-						  sMeasVar->fzeroHeaterRes);
+					  sMeasVar->fzeroHeaterRes);
 				 AppPrintf("\r\nAmbient Heater Temp: T_A   = %.2f [C]",
-							  sMeasVar->fAmbientHeaterTemp);
+					  sMeasVar->fAmbientHeaterTemp);
 				 AppPrintf("\r\nAmbient Heater Hum:  HUM   = %.2f [%s]",
-							  sMeasVar->fAmbientHeaterHum, percent);
+					  sMeasVar->fAmbientHeaterHum, percent);
 				 UART_WriteString("\r\n");
 
 				 AppPrintf("\r\n>>Type in <help> to see available commands\n");
@@ -162,14 +162,12 @@ int main(int argc, char* argv[])
 
               float	fCurrent = sMeasVar->fHeaterCurrent;;
               float	fDesiredHeaterRes = sMeasVar->fDesiredHeaterRes;
-//              fCurrent = sMeasVar->fHeaterCurrent;
-//              fDesiredHeaterRes = sMeasVar->fDesiredHeaterRes;
               CN0395_CorrectError(sMeasVar, fCurrent, fDesiredHeaterRes, RESISTANCE);
               CN0395_ComputeHeaterRPT(sMeasVar); // Compute RH, PH and TH
 
               CN0395_MeasureSensorResistance(sMeasVar);
 //              timer_sleep(998);
-              timer_sleep(50);
+              timer_sleep(950); // experimental
               CN0395_DisplayData(sMeasVar);
         }
     }

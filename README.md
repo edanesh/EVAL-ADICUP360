@@ -1,3 +1,5 @@
+***Modified version of the firmware to make this board compatible with AS VOC-M31 sensor***
+
 # EVAL-ADICUP360 Read Me
 
 ## Overview ##

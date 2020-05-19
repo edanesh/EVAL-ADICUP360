@@ -398,13 +398,17 @@ void CN0395_DisplayData(sMeasurementVariables *sMeasVar)
 			  sMeasVar->fHeaterVoltage);
 		AppPrintf("\r\nHeater Current:      IH    = %.4f [mA]",
 			  sMeasVar->fHeaterCurrent);
-		AppPrintf("\r\nHeater Resistance:   RH    = %.2f [Ohms]", sMeasVar->fHeaterRes);
+		AppPrintf("\r\nHeater Resistance:   RH    = %.2f [Ohms]",
+			  sMeasVar->fHeaterRes);
+		AppPrintf("\r\nHeater Power:        PH    = %.4f [mW]",
+			  sMeasVar->fHeaterPower);
+		AppPrintf("\r\nHeater Temp:         TH    = %.2f [C]",
+			  sMeasVar->fHeaterTemp );
 		AppPrintf("\r\nAmbient Heater Temp: T_A   = %.2f [C]",
 			  sMeasVar->fAmbientHeaterTemp);
 		AppPrintf("\r\nAmbient Heater Hum:  HUM   = %.2f [%s]",
 			  sMeasVar->fAmbientHeaterHum, percent);
-		AppPrintf("\r\nHeater Power:        PH    = %.4f [mW]", sMeasVar->fHeaterPower);
-		AppPrintf("\r\nHeater Temp:         TH    = %.2f [C]", sMeasVar->fHeaterTemp );
+
 //		AppPrintf("\r\nADC Data                   = 0x%x",
 //			  sMeasVar->ui16LastAdcDataRead);
 //		AppPrintf("\r\nSensor Res Air:      Ro    = %.2f [Ohms]",
@@ -421,12 +425,14 @@ void CN0395_DisplayData(sMeasurementVariables *sMeasVar)
 //		AppPrintf("\r\nGas Concentration       C     = %.2f [PPM]", sMeasVar->fPPM);
 		AppPrintf("\r\nSensor Voltage:         Vs    = %.4f [V]",
 			  sMeasVar->fSensorVoltage);
-		AppPrintf("\r\nHeater Resistance:   RH    = %.2f [Ohms]", sMeasVar->fHeaterRes);
+		AppPrintf("\r\nHeater Resistance:   RH    = %.2f [Ohms]",
+			  sMeasVar->fHeaterRes);
 		AppPrintf("\r\nHeater Voltage:         VH    = %.4f [V]",
 			  sMeasVar->fHeaterVoltage);
 		AppPrintf("\r\nHeater Current:      IH    = %.4f [mA]",
-					  sMeasVar->fHeaterCurrent);
-		AppPrintf("\r\nHeater Temp:         TH    = %.2f [C]", sMeasVar->fHeaterTemp );
+			  sMeasVar->fHeaterCurrent);
+		AppPrintf("\r\nHeater Temp:         TH    = %.2f [C]",
+			  sMeasVar->fHeaterTemp );
 		AppPrintf("\r\nAmbient Heater Temp:    T_A   = %.2f [C]",
 			  sMeasVar->fAmbientHeaterTemp);
 		AppPrintf("\r\nAmbient Heater Hum:     HUM   = %.2f [%s]",
@@ -669,7 +675,7 @@ void CN0395_CorrectError(sMeasurementVariables *sMeasVar,
 
 	while (fError > 0.005) { // repeat until the error is less than 0.5%
 		if (ADN8810_SetOutput(fInputCurrent, sMeasVar) > 0) {
-			timer_sleep(1000); // delay 1s for stabilization to account for slow response of S ceramic sensor
+			timer_sleep(500); // delay 500ms for stabilization to account for slow response of S ceramic sensor
 
 			ui16AdcData = CN0395_ReadAdc(sMeasVar);
 			fVoltage = AD7988_DataToVoltage(ui16AdcData); // Convert ADC data to Voltage
@@ -814,7 +820,7 @@ void CN0395_CmdSetHeaterTemp(uint8_t *args, sMeasurementVariables *sMeasVar)
 	float       fDesiredHeaterRes;
 	float       fAmbientHeaterRes;
 	float       fHum;
-	float       fCurrent = 8;
+	float       fCurrent;
 	float		fzeroHeaterRes; // new variable for AS modified board
 //	const float fDefaultHeaterRes = 110; // 110Ω @ 20°C
 
